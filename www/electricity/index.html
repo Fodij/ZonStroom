@@ -1,0 +1,199 @@
+<html>
+  <head>
+    <!--Load the AJAX API-->
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    <script type="text/javascript" src="/javascript/jquery/jquery.js"></script>
+    <script type="text/javascript">
+    
+    width = 1024
+    height = 480
+    scale =  {'width': '80%', 'height': '80%'}
+    
+    // Load the Visualization API and the piechart package.
+    google.load('visualization', '1', {'packages':['corechart']});
+      
+    // Set a callback to run when the Google Visualization API is loaded.
+    google.setOnLoadCallback(drawCharts);
+    
+    var monthNames = [ "januari", "februari", "maart", "april", "mei", "juni",
+    "juli", "augustus", "september", "oktober", "november", "december" ];
+    
+    function parseDate(dateString) {
+    // [y, m, d, hr, min, sec]
+       var parts = dateString.match(/\d+/g);
+       parts[1] = parts[1] - 1
+    return new Date(parts[0],parts[1],parts[2],parts[3],parts[4],parts[5]);
+    }
+
+    function drawSingleDay(year,month,day) {
+      var jsonData = $.ajax({
+          url: "getDataSingleDay.php?year=" + year + "&month=" + month + "&day=" + day,
+          dataType:"json",
+          async: false
+          }).responseText;
+      // Transform the date strings into javascript datetime
+      
+      var graphData = jQuery.parseJSON(jsonData);
+            
+      for ( var i = 0; i < graphData.rows.length; i++ ) { 
+          graphData.rows[i].c[0].v = parseDate(graphData.rows[i].c[0].v);
+      }      
+            
+      // Create our data table out of JSON data loaded from server.
+      var data = new google.visualization.DataTable(graphData);
+      
+      startDate = new Date(parseInt(year),parseInt(month)-1,parseInt(day),0) 
+      endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate()+1);
+      var options = {
+          title: 'Stroomverbruik en teruglevering op ' + day + '-' + month + '-' + year,
+          hAxis: {title: 'Tijd', viewWindow: {min: startDate, max: endDate}},
+          vAxis: {title: 'kW'},
+          width: width,
+          height: height,
+          chartArea: scale,
+          isStacked: true,  
+          bar: {groupWidth: '100%'}          
+          };
+
+      // Instantiate and draw our chart, passing in some options.
+      var chart = new google.visualization.ColumnChart(document.getElementById('chart_SingleDay'));
+      chart.draw(data, options);
+    }
+    
+    function drawMonths(year) {
+      var jsonData = $.ajax({
+          url: "getDataMonths.php?year=" + year,
+          dataType:"json",
+          async: false
+          }).responseText;
+          
+      // Create our data table out of JSON data loaded from server.
+      var data = new google.visualization.DataTable(jsonData);
+      
+      var options = {
+          title: 'Stroomverbruik en teruglevering per maand voor het jaar ' + year,
+          hAxis: {title: 'Maand'},
+          vAxis: {title: 'kWh'},
+          width: width,
+          height: height,
+          chartArea: scale,
+          isStacked: true      
+          };
+
+      // Instantiate and draw our chart, passing in some options.
+      var chart = new google.visualization.ColumnChart(document.getElementById('chart_Months'));
+      chart.draw(data, options);
+
+      google.visualization.events.addListener(chart, 'select', selectHandler);
+      
+      function selectHandler(e) {
+         selection = chart.getSelection()
+         if (selection.length>0) {
+            newmonth = data.getValue(selection[0].row,0) + '';
+            if (newmonth.length < 2) { newmonth = '0' + newmonth };
+            drawDays(year,newmonth);
+         }
+      }     
+   }
+    
+    function drawYears() {
+      var jsonData = $.ajax({
+          url: "getDataYears.php",
+          dataType:"json",
+          async: false
+          }).responseText;
+          
+      // Create our data table out of JSON data loaded from server.
+      var data = new google.visualization.DataTable(jsonData);
+      
+      var options = {
+          title: 'Stroomverbruik en teruglevering per jaar',
+          hAxis: {title: 'Jaar'},
+          vAxis: {title: 'kWh'},
+          width: width,
+          height: height,
+          chartArea: scale,
+          isStacked: true      
+          };
+
+      // Instantiate and draw our chart, passing in some options.
+      var chart = new google.visualization.ColumnChart(document.getElementById('chart_Years'));
+      chart.draw(data, options);
+
+      google.visualization.events.addListener(chart, 'select', selectHandler);
+      
+      function selectHandler(e) {
+         selection = chart.getSelection()
+         if (selection.length>0) {
+            newyear = data.getValue(selection[0].row,0) + '';
+            drawMonths(year);
+         }
+      }      
+    }
+    
+    function drawDays(year,month) {
+      var jsonData = $.ajax({
+          url: "getDataDays.php?year=" + year + "&month=" + month,
+          dataType:"json",
+          async: false
+          }).responseText;
+          
+      // Create our data table out of JSON data loaded from server.
+      var data = new google.visualization.DataTable(jsonData);
+      
+      var options = {
+          title: 'Stroomverbruik en teruglevering per dag voor de maand ' + monthNames[parseInt(month-1)],
+          hAxis: {title: 'Dag'},
+          vAxis: {title: 'kWh'},
+          width: width,
+          height: height,
+          chartArea: scale,
+          isStacked: true      
+          };
+
+      // Instantiate and draw our chart, passing in some options.
+      var chart = new google.visualization.ColumnChart(document.getElementById('chart_Days'));
+      chart.draw(data, options);
+    
+      google.visualization.events.addListener(chart, 'select', selectHandler);
+
+      function selectHandler(e) {
+         selection = chart.getSelection()
+         if (selection.length>0) {
+            newday = data.getValue(selection[0].row,0) + '';
+            if (newday.length < 2) { newday = '0' + newday };
+            drawSingleDay(year,month,newday);
+            }
+         }
+    }
+    
+    function drawCharts() {
+      today = new Date();
+      year = today.getFullYear() + '';
+      month = today.getMonth() + 1 + '';
+      if (month.length < 2) { month = '0' + month }
+      day = today.getDate() + '';
+      if (day.length < 2) { day = '0' + day }
+      
+      drawSingleDay(year,month,day);
+      drawDays(year,month);
+      drawMonths(year);
+      drawYears();
+    }
+
+    </script>
+  </head>
+
+  <body>
+  <h1>Overzicht stroomverbruik en teruglevering</h1>
+    <!--Div that will hold the chart-->
+    <div id="chart_SingleDay"></div>
+    <p></p>
+    <div id="chart_Days"></div>
+    <p></p>
+    <div id="chart_Months"></div>
+    <p></p>
+    <div id="chart_Years"></div>    
+  </body>
+</html>
